@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>AI PR Review Assistant</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #16181d;
+    --paper: #faf9f7;
+    --panel: #ffffff;
+    --border: #e5e2dd;
+    --accent: #0b6e4f;
+    --accent-soft: #e6f1ec;
+    --muted: #6b6f76;
+    --critical: #b3261e;
+    --warning: #9a6700;
+    --nit: #1d5fae;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+
+  body {
+    font-family: 'Inter', sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    margin: 0;
+  }
+
+  .shell {
+    display: grid;
+    grid-template-columns: 340px 1fr;
+    min-height: 100vh;
+  }
+
+  .sidebar {
+    background: var(--panel);
+    border-right: 1px solid var(--border);
+    padding: 48px 36px;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .mark {
+    width: 34px; height: 34px;
+    border-radius: 8px;
+    background: var(--accent);
+    color: white;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Fraunces', serif;
+    font-weight: 600;
+    font-size: 17px;
+    margin-bottom: 28px;
+  }
+
+  h1 {
+    font-family: 'Fraunces', serif;
+    font-weight: 600;
+    font-size: 27px;
+    line-height: 1.25;
+    margin: 0 0 14px 0;
+    letter-spacing: -0.01em;
+  }
+
+  p.tagline {
+    color: var(--muted);
+    font-size: 14.5px;
+    line-height: 1.6;
+    margin: 0 0 32px 0;
+  }
+
+  label {
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--ink);
+    margin-bottom: 8px;
+    display: block;
+  }
+
+  input {
+    width: 100%;
+    padding: 11px 13px;
+    font-size: 13.5px;
+    font-family: 'IBM Plex Mono', monospace;
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    background: var(--paper);
+    color: var(--ink);
+    outline: none;
+    margin-bottom: 12px;
+  }
+  input:focus { border-color: var(--accent); background: white; }
+  input::placeholder { color: #a8a29a; }
+
+  button {
+    width: 100%;
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 7px;
+    padding: 12px;
+    cursor: pointer;
+  }
+  button:hover:not(:disabled) { background: #085a3f; }
+  button:disabled { background: #d6d3cd; cursor: not-allowed; }
+
+  .status-line {
+    margin-top: 14px;
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.5;
+    display: none;
+  }
+  .status-line.visible { display: block; }
+  .status-line.error { color: var(--critical); }
+
+  .sidebar-footer {
+    margin-top: auto;
+    padding-top: 24px;
+    font-size: 12px;
+    color: #a8a29a;
+    border-top: 1px solid var(--border);
+  }
+
+  .workspace {
+    padding: 56px 64px;
+    overflow-y: auto;
+  }
+
+  .empty-state {
+    max-width: 420px;
+    margin-top: 60px;
+  }
+
+  .empty-icon {
+    width: 40px; height: 40px;
+    border-radius: 10px;
+    background: var(--accent-soft);
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 20px;
+  }
+
+  .empty-state h2 {
+    font-family: 'Fraunces', serif;
+    font-weight: 600;
+    font-size: 19px;
+    margin: 0 0 10px 0;
+  }
+
+  .empty-state p {
+    color: var(--muted);
+    font-size: 14px;
+    line-height: 1.6;
+    margin: 0;
+  }
+
+  .file-block {
+    max-width: 640px;
+    margin-bottom: 40px;
+  }
+
+  .file-block:not(:first-child) {
+    padding-top: 32px;
+    border-top: 1px solid var(--border);
+  }
+
+  .filename {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--ink);
+    background: var(--accent-soft);
+    padding: 4px 9px;
+    border-radius: 5px;
+    display: inline-block;
+  }
+
+  .file-summary {
+    color: var(--muted);
+    font-size: 14.5px;
+    line-height: 1.6;
+    margin: 12px 0 20px 0;
+  }
+
+  .issue {
+    border-left: 3px solid var(--border);
+    padding: 2px 0 2px 18px;
+    margin-bottom: 16px;
+  }
+  .issue.critical { border-left-color: var(--critical); }
+  .issue.warning { border-left-color: var(--warning); }
+  .issue.nit { border-left-color: var(--nit); }
+
+  .issue-head {
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: capitalize;
+  }
+  .issue-head.critical { color: var(--critical); }
+  .issue-head.warning { color: var(--warning); }
+  .issue-head.nit { color: var(--nit); }
+
+  .issue-meta {
+    color: var(--muted);
+    font-weight: 500;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11.5px;
+  }
+
+  .issue-message {
+    font-size: 14.5px;
+    margin: 7px 0 0 0;
+    line-height: 1.55;
+  }
+
+  .issue-suggestion {
+    margin-top: 9px;
+    padding: 10px 13px;
+    background: var(--accent-soft);
+    border-radius: 6px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12.5px;
+    color: #0b4a35;
+    white-space: pre-wrap;
+    line-height: 1.55;
+  }
+
+  .skipped-note {
+    color: var(--muted);
+    font-size: 13px;
+    margin-top: 8px;
+  }
+
+  @media (max-width: 780px) {
+    .shell { grid-template-columns: 1fr; }
+    .sidebar { border-right: none; border-bottom: 1px solid var(--border); }
+    .workspace { padding: 40px 24px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="shell">
+  <div class="sidebar">
+    <div class="mark">R</div>
+    <h1>AI PR Review Assistant</h1>
+    <p class="tagline">Paste a GitHub pull request link. Get a structured review, grounded in static analysis and tuned to the repo's own conventions.</p>
+
+    <label for="prUrl">Pull request URL</label>
+    <input type="text" id="prUrl" placeholder="https://github.com/owner/repo/pull/123" />
+    <button id="submitBtn" onclick="reviewPR()">Review this PR</button>
+    <div id="statusLine" class="status-line"></div>
+
+    <div class="sidebar-footer">Static analysis (AST) + LLM reasoning, in one pass.</div>
+  </div>
+
+  <div class="workspace">
+    <div id="emptyState" class="empty-state">
+      <div class="empty-icon">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0b6e4f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="9 11 12 14 22 4"></polyline>
+          <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+        </svg>
+      </div>
+      <h2>No review yet</h2>
+      <p>Once you submit a PR link, each changed file will appear here with its issues, severity, and suggested fixes.</p>
+    </div>
+    <div id="results"></div>
+  </div>
+</div>
+
+<script>
+async function reviewPR() {
+  const prUrl = document.getElementById("prUrl").value.trim();
+  const statusLine = document.getElementById("statusLine");
+  const resultsDiv = document.getElementById("results");
+  const emptyState = document.getElementById("emptyState");
+  const btn = document.getElementById("submitBtn");
+
+  resultsDiv.innerHTML = "";
+  statusLine.className = "status-line visible";
+
+  if (!prUrl) {
+    statusLine.className = "status-line visible error";
+    statusLine.textContent = "Please paste a PR URL.";
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = "Reviewing…";
+  statusLine.textContent = "Fetching diff and running the review — this can take 10–30s.";
+
+  try {
+    const response = await fetch("/review-pr", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pr_url: prUrl }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      statusLine.className = "status-line visible error";
+      statusLine.textContent = `Error: ${data.detail}`;
+      return;
+    }
+
+    statusLine.className = "status-line";
+    emptyState.style.display = "none";
+    renderResults(data);
+  } catch (err) {
+    statusLine.className = "status-line visible error";
+    statusLine.textContent = `Request failed: ${err.message}`;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Review this PR";
+  }
+}
+
+function renderResults(data) {
+  const resultsDiv = document.getElementById("results");
+  let html = "";
+
+    if (data.reviews.length === 0) {
+    html += `<p class="skipped-note">No files were successfully reviewed.</p>`;
+    if (data.files_skipped.length > 0) {
+      html += `<p class="skipped-note">Skipped: ${data.files_skipped.map(escapeHtml).join(", ")}</p>`;
+    }
+    resultsDiv.innerHTML = html;
+    return;
+  }
+
+  for (const review of data.reviews) {
+    html += `<div class="file-block">`;
+    html += `<span class="filename">${escapeHtml(review.filename)}</span>`;
+    html += `<p class="file-summary">${escapeHtml(review.summary)}</p>`;
+
+    for (const issue of review.issues) {
+      html += `<div class="issue ${issue.severity}">`;
+      html += `<span class="issue-head ${issue.severity}">${issue.severity}</span> `;
+      html += `<span class="issue-meta">${escapeHtml(issue.category)}${issue.line ? ' · line ' + issue.line : ''}</span>`;
+      html += `<p class="issue-message">${escapeHtml(issue.message)}</p>`;
+      if (issue.suggestion) {
+        html += `<div class="issue-suggestion">${escapeHtml(issue.suggestion)}</div>`;
+      }
+      html += `</div>`;
+    }
+    html += `</div>`;
+  }
+
+  if (data.files_skipped.length > 0) {
+    html += `<p class="skipped-note">Skipped: ${data.files_skipped.map(escapeHtml).join(", ")}</p>`;
+  }
+
+  resultsDiv.innerHTML = html;
+}
+
+function escapeHtml(str) {
+  const div = document.createElement("div");
+  div.textContent = str;
+  return div.innerHTML;
+}
+</script>
+
+</body>
+</html>
